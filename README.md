@@ -17,5 +17,6 @@ poetry run uvicorn app.main:app --reload --port 8000
 ```
 
 See [`docs/setup.md`](docs/setup.md) for details, [`docs/architecture.md`](docs/architecture.md)
-for the technical design, and [`docs/roadmap.md`](docs/roadmap.md) for the
-phased plan for upcoming features.
+for the technical design, [`docs/data-model.md`](docs/data-model.md) for the
+entity design, and [`docs/roadmap.md`](docs/roadmap.md) for the phased plan
+for upcoming features.

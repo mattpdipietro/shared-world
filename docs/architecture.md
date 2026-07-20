@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: Technical design of the LangGraph agent, database schema, and the planned Celery/Redis job pipeline, entity graph, and hex-based conflict detection.
+description: Technical design of the LangGraph agent, the planned Celery/Redis job pipeline, entity relationship graph, and hex-based conflict detection. See Data Model for the domain schema.
 ---
 
 # Architecture
@@ -60,8 +60,14 @@ Conventions:
 - Primary keys: `UUID`, server-generated via `gen_random_uuid()`.
 - Embedding columns: `vector(768)`, matching `nomic-embed-text` (or any other
   768-dim local embedding model run through Ollama).
-- Flexible per-entity metadata (hex coordinates, level ranges, faction
-  standing, etc.): `JSONB`.
+- Flexible per-entity metadata (level ranges, faction standing, etc.):
+  `JSONB`. Hex coordinates are the one exception — see
+  [Data Model](data-model.md) for why those are plain integer columns
+  instead.
+
+See [Data Model](data-model.md) for the actual domain schema (people,
+characters, sessions, entities, notes, and the processing/provenance
+tables) — this page stays focused on the surrounding technical machinery.
 
 `app/db/bootstrap.py` enables the `vector` extension and creates tables from
 `app/db/models.py` directly (`Base.metadata.create_all`). This is sufficient
@@ -134,9 +140,12 @@ a relationship as a single mutable row breaks as soon as the world changes
 (e.g. an NPC dies and should no longer be "LEADER OF" their faction).
 
 Instead, relationships are modeled as an **append-only event log** —
-`relationship_events` (`source_entity_id`, `target_entity_id`,
-`relation_type`, `description`, `session_log_id`, `occurred_at`,
-`ends_relationship_id` nullable FK to a prior event it retires):
+`RelationshipEvent` (`source_entity_id`, `target_entity_id`,
+`relation_type`, `occurred_at`, `ends_relationship_id` nullable FK to a
+prior event it retires). See [Data Model](data-model.md#core-entities) for
+the full column list, including the `capture_method` (manual / syntax /
+llm-inferred) and `review_status` fields that track how confident the
+system should be in a given event and whether a DM has approved it yet:
 
 ```mermaid
 flowchart TD
@@ -166,24 +175,31 @@ SQL — not needed for the initial build.
 ## Hex-based conflict detection
 
 Multiple DMs sharing one hex map can accidentally contradict each other's
-lore. Before a DM runs a new session, their notes get checked against
-nearby history:
+lore. This no longer needs its own separate "draft-check" workflow: by the
+time a session exists, its host has already tagged the location(s) and
+quest(s) it's about (`SessionEntityLink` — see
+[Data Model](data-model.md#session-activity-data-mutable-living-records)),
+so pre-session planning is just a query against tags that already exist,
+not something a DM fills out separately:
 
 ```mermaid
 flowchart LR
-    Draft["DM's draft notes<br/>+ hex (q, r)"] --> Radius["Compute hex-radius<br/>candidate set (Python)"]
+    Tags["Session's tagged locations/quests<br/>(SessionEntityLink)"] --> Radius["Compute hex-radius<br/>candidate set (Python)"]
     Radius --> Search["pgvector similarity search<br/>scoped to candidate hexes"]
     Search --> LLM["LLM classifier:<br/>conflict? yes/no + why"]
-    LLM --> Flag["Flag DM if conflict"]
+    LLM --> Flag["Surface to DM during<br/>pre-session planning"]
 ```
 
 - No PostGIS — it's a real geospatial engine, overkill for a hand-authored
   hex grid. Hex coordinates are plain integer columns (`hex_q`, `hex_r`,
-  axial coordinates) on `session_logs`, `entities`, and `lore_chunks`.
+  axial coordinates) on `Entity` records — explicit data the DM entered
+  when creating the location, never inferred from prose (see
+  [Structure over inference](data-model.md#structure-over-inference)).
 - The radius search itself (e.g. "within 2 hexes") is a handful of lines of
   cube-coordinate distance math in Python, producing a candidate set of
-  `(q, r)` pairs used as a plain `WHERE (hex_q, hex_r) IN (...)` filter,
-  combined with `pgvector` cosine-similarity ordering.
+  `(q, r)` pairs used as a plain `WHERE (hex_q, hex_r) IN (...)` filter
+  against `lore_chunks`, combined with `pgvector` cosine-similarity
+  ordering.
 - The LLM's role is narrow and structured on purpose: a yes/no verdict plus
   a one-line explanation, not a rewritten story.
 

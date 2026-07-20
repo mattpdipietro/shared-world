@@ -35,9 +35,9 @@ See [Architecture](architecture.md) for the technical design and
 ## Planned features
 
 The four features below are the next things to build. See
-[Architecture](architecture.md) for how each one fits into the existing
-design, and [Roadmap](roadmap.md) for the phased build plan (not started
-yet).
+[Data Model](data-model.md) for the entity design behind them,
+[Architecture](architecture.md) for the surrounding technical machinery,
+and [Roadmap](roadmap.md) for the phased build plan (not started yet).
 
 ### 1. Graph RAG (Entity & Faction Relation Mapping)
 Standard vector search (RAG) is great for finding a specific sentence about a past event, but it's terrible at tracking interconnected relationships over time. In a West Marches game, everything is connected.

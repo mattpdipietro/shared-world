@@ -1,15 +1,16 @@
 ---
 title: Roadmap
-description: Phased implementation plan for the Multi-DM Session Log Intake pipeline, the Automated Rumor Mill, the Entity Relationship Graph, and the Hex-Based Conflict Detector.
+description: Phased implementation plan — master data and session entry first, background processing and AI features later.
 ---
 
 # Roadmap
 
-This is the phased build plan for the four features described on the
-[Home](index.md) page, and the cross-cutting decisions behind them are
-detailed in [Architecture](architecture.md). **Status: not started** — this
-page is the plan of attack for a future implementation session; nothing
-described here has been built yet.
+This is the phased build plan for the features described on the
+[Home](index.md) page. [Data Model](data-model.md) covers the entity design
+behind it, and [Architecture](architecture.md) covers the surrounding
+technical machinery. **Status: not started** — this page is the plan of
+attack for a future implementation session; nothing described here has
+been built yet.
 
 ## Constraints this plan works within
 
@@ -26,117 +27,206 @@ described here has been built yet.
 - Explicit goal: use this project to grow real-world technical skills — when
   a minimal-footprint option and an industry-standard option are a close
   call, prefer the industry-standard one. This is why the plan uses
-  Celery + Redis for background jobs rather than a Postgres-only task queue.
-- Audio/voice-note intake is explicitly **out of scope** — the session-log
-  intake pipeline only needs to handle pasted text (bullet-point or
-  narrative style).
+  Celery + Redis for background jobs rather than a Postgres-only task queue,
+  and Discord OAuth (a standard OAuth2 flow) for login.
+- **Structure over inference**: master data (people, characters, entities,
+  sessions, tags) is captured through direct references at entry time, not
+  reconstructed from freeform text afterward. See
+  [Data Model](data-model.md#structure-over-inference) for the reasoning.
+  This is why the build order below starts with master data and entry UX,
+  not with the AI pipeline.
+- Multi-user from the start — DMs and players both log in (Discord OAuth)
+  and enter their own notes. Editing is entitlement-based in design, fully
+  open in practice for v1 (see
+  [Authentication and entitlements](data-model.md#authentication-and-entitlements)).
+- Audio/voice-note intake and note revision history are both explicitly
+  **out of scope**.
+- **Frontend stack: React + Vite + TypeScript** (client-rendered SPA
+  against the FastAPI backend — no Next.js/SSR, since there's no need for
+  it here). Chosen over Angular (which the user already knows, but not
+  deeply) for the same reason as Celery + Redis: given a close call,
+  prefer the option with more real-world transferability and a bigger
+  stretch from what's already familiar. React also has the strongest
+  ecosystem fit for what this app specifically needs — mature libraries for
+  forms, data tables, markdown, and node/edge graph visualization
+  (`react-flow`, for the later entity relationship graph view). Default
+  supporting choices: **TanStack Query** (data fetching/caching),
+  **React Hook Form + Zod** (forms/validation — Zod schemas mirroring the
+  backend's Pydantic schemas), **shadcn/ui + Tailwind** (components), and
+  **React Router**.
 
 ## Build order
 
-Session log intake is a prerequisite for the other three features — they
-all consume its output. Among those three, the simplest pipeline
-(Rumor Mill) is built first to validate the Celery/Redis plumbing before
-the harder graph and spatial-vector work.
+Master data and the entry journey are prerequisites for everything else —
+every AI feature operates on data captured through them, not on raw
+uploaded text. The processing pipeline (queueing, provenance, the review
+queue) is built once, generically, before any specific AI feature, since
+all three later features are just different consumers of the same
+`ProcessingRun` machinery.
 
 ```mermaid
 flowchart LR
-    P0["Phase 0<br/>Foundations"] --> P1["Phase 1<br/>Session Log Intake"]
-    P1 --> P2["Phase 2<br/>Rumor Mill"]
-    P1 --> P3["Phase 3<br/>Entity Relationship Graph"]
-    P1 --> P4["Phase 4<br/>Hex Conflict Detector"]
+    P0["Phase 0<br/>Foundations"] --> P1["Phase 1<br/>Master Data &amp; Session Entry"]
+    P1 --> P2["Phase 2<br/>Processing Pipeline Foundations"]
+    P2 --> P3["Phase 3<br/>Rumor Mill"]
+    P2 --> P4["Phase 4<br/>Entity Relationship Graph"]
+    P2 --> P5["Phase 5<br/>Hex Conflict Detector"]
+    P1 -.->|optional, anytime after| P6["Phase 6<br/>Inline Syntax Tagging"]
 ```
 
-Phases 2, 3, and 4 only depend on Phase 1's output, not on each other — the
-order between them is a build-order choice (simplest first), not a hard
-technical dependency.
+Phases 3, 4, and 5 only depend on Phase 2's pipeline, not on each other —
+their order is a build-order choice, not a hard technical dependency. Phase
+6 (the Obsidian-style `[[wiki-link]]` tier) is genuinely secondary and can
+slot in whenever, since plain-text notes work without it.
 
 ### Phase 0 — Foundations
 
 Provider-swappable LLM factory (`app/agent/llm.py`), Celery + Redis wired
-into `docker-compose.yml`, Alembic initialized (baseline migration =
-current `campaigns`/`entities` tables), app `Dockerfile` plus `api`/
-`worker`/`redis` compose services.
+into `docker-compose.yml`, Alembic initialized, app `Dockerfile` plus
+`api`/`worker`/`redis` compose services, Discord OAuth2 login (backend
+callback + `Person` creation), and the entitlement policy seam
+(`has_permission()`, stubbed to always allow).
 
-**New dependencies:** `langchain-ollama`, `celery`, `redis`, `alembic`;
-move `httpx` from the dev group to main (needed for the Discord webhook in
-Phase 2).
+This is also where the frontend app shell gets scaffolded — a bare React +
+Vite + TypeScript app (routing, API client, TanStack Query set up) with the
+Discord login flow wired end-to-end (redirect out, callback in, session
+established), since auth is infrastructure every later screen depends on,
+not a feature of any one of them. No actual data-entry screens yet — those
+are Phase 1.
 
-**Verify:** `docker-compose up` brings up the full stack; a trivial Celery
-`ping` task round-trips through Redis; `poetry run alembic upgrade head`
-runs clean against a fresh database.
+**New dependencies (backend):** `langchain-ollama`, `celery`, `redis`,
+`alembic`, an OAuth2 client library for the Discord flow (e.g. `authlib`);
+move `httpx` from the dev group to main.
 
-### Phase 1 — Multi-DM Session Log Intake
+**New frontend app (`frontend/`):** Vite + React + TypeScript, React
+Router, TanStack Query, React Hook Form + Zod, shadcn/ui + Tailwind (see
+[Frontend stack](#constraints-this-plan-works-within) above); its own
+`Dockerfile` (static build served via nginx) and an `web` service in
+`docker-compose.yml`.
 
-`POST /session-logs` accepts pasted text in any style (bullet points or
-narrative prose). A `normalize_log` LLM call formats it into a strict
-Pydantic schema (date, players, location + hex coordinates, key
-achievements, casualties, open plot hooks). `PATCH /session-logs/{id}/approve`
-flips status from `draft` to `approved` — later phases hook this event.
+**Verify:** `docker-compose up` brings up the full stack including the
+frontend; a trivial Celery `ping` task round-trips through Redis;
+`poetry run alembic upgrade head` runs clean; clicking "log in" in the
+browser completes the Discord OAuth round trip and creates a `Person` row.
 
-**New table:** `session_logs` (id, campaign_id, raw_input, structured
-JSONB, status, timestamps).
+### Phase 1 — Master Data & Session Entry
 
-**Verify:** paste a messy bullet-point log and a narrative-style log through
-`/session-logs`; confirm both normalize to the same structured shape.
+The core deliverable of this phase is the entry journey itself (see
+[Data Model](data-model.md#session-entry-journey-the-core-recurring-flow)),
+not an AI pipeline:
 
-### Phase 2 — Automated Rumor Mill
+- CRUD for `Campaign`, `Character`, and `Entity` (NPC/location/faction/item/
+  quest), including inline quick-create from the session flow.
+- `Session` creation/editing: assign DM, manage the participant roster
+  (add/remove people freely — rosters change constantly), assign host
+  (must be a `player`-role participant, never the DM), tag
+  locations/hexes and quests via `SessionEntityLink`.
+- `Note` creation/editing per participant — single markdown field, mutable,
+  no revision history.
 
-On log approval, enqueue a `generate_rumors` Celery task → structured LLM
-output (`rumors: list[str]`, max 3) → persist to `rumors` → `httpx` POST to
-`DISCORD_WEBHOOK_URL`.
+**New tables:** `Person` (created only via login), `Character`, `Entity`,
+`Session`, `SessionParticipant`, `SessionEntityLink`, `Note`. Full column
+detail in [Data Model](data-model.md#core-entities).
 
-**New table:** `rumors` (id, session_log_id, campaign_id, text,
-pushed_to_discord, created_at).
+**Verify:** a host creates a session, assigns a DM and host (rejecting an
+attempt to assign the DM as host), adds/removes participants, tags a
+location and a quest (quick-creating the location inline), and each
+participant adds and later edits their own note.
 
-**Verify:** approve a log, confirm 1–3 rumor rows are persisted, and (with a
-test webhook URL configured) confirm a message lands in Discord.
+### Phase 2 — Processing Pipeline Foundations
 
-### Phase 3 — Entity Relationship Graph
+Generic infrastructure the three AI features below all sit on top of —
+built once, not per feature:
 
-On log approval, enqueue an `extract_entities_relationships` task →
-structured LLM output (entities + relationship events, including "ends"
-events) → upsert `entities`, append to `relationship_events`. Add a
-`query_relationships` agent tool (mirrors the existing `lookup_lore` tool
-pattern in `app/agent/tools.py`) that resolves "current state" for a given
-entity or location. Expose `GET /entities/{id}/relationships`.
+- `ProcessingRun` / `ProcessingRunInput` tables and the Celery task that
+  executes a run against whatever notes are in scope.
+- A `capture_method` / `review_status` convention applied consistently to
+  every derived-fact table added in Phases 3–5.
+- A review queue endpoint/screen listing `pending_review` facts for DM
+  approval — generic across fact types, not built per feature.
 
-**New table:** `relationship_events` (see
-[Entity relationship graph](architecture.md#entity-relationship-graph-event-sourced)
-in Architecture for the full column list and reasoning).
+No decision on processing *cadence* is made here (per-note, per-session, or
+a periodic batch) — the schema and queue don't commit to one; whatever
+triggers a run just constructs its `ProcessingRunInput` scope accordingly.
 
-**Verify:** run two session logs where the second event ends a relationship
-asserted in the first (e.g. an NPC dies); confirm the "current state"
-resolver excludes the ended edge.
+**Verify:** manually enqueue a run against a session's notes; confirm a
+`ProcessingRun` row and its `ProcessingRunInput` rows are created;
+confirm editing a note after the run makes it show up as stale (per
+[Provenance and reprocessing](data-model.md#provenance-and-reprocessing)).
 
-### Phase 4 — Hex-Based Conflict Detector
+### Phase 3 — Automated Rumor Mill
 
-Add embedding generation (`OllamaEmbeddings`, `nomic-embed-text`) into a new
-`lore_chunks` table on log approval. `POST /session-logs/draft-check` (a
-DM's upcoming-session notes plus hex coordinates) computes a hex-radius
-candidate set in Python, runs a `pgvector` similarity search scoped to
-those hexes and the campaign, then an LLM classifier returns a structured
-`{conflict: bool, explanation: str}` verdict.
+A `generate_rumors` task consumes a `ProcessingRun`'s notes → structured
+LLM output (`rumors: list[str]`, max 3) → persisted `rumors` rows
+(`capture_method = llm_inferred`, `review_status = pending_review`) →
+`httpx` POST to `DISCORD_WEBHOOK_URL` once approved.
 
-**New table:** `lore_chunks` (id, session_log_id, chunk_text, embedding
-vector(768), hex_q, hex_r, campaign_id). Also adds `hex_q`/`hex_r` columns
-to the existing `entities` table.
+**New table:** `rumors` (id, source_processing_run_id, campaign_id, text,
+capture_method, review_status, pushed_to_discord, created_at).
 
-**Verify:** seed two logs in adjacent hexes with a real contradiction (e.g.
-"collapsed the cave entrance" vs. a later draft assuming access); confirm
-the draft-check flags it, and confirm an unrelated draft in a far hex is
-not flagged.
+**Verify:** run the pipeline against a session with notes, confirm 1–3
+rumor rows land in the review queue, approve one, confirm it posts to a
+test Discord webhook.
+
+### Phase 4 — Entity Relationship Graph
+
+An `extract_entities_relationships` task consumes a `ProcessingRun`'s notes
+→ structured LLM output (relationship events, including "ends" events,
+each tagged `capture_method = llm_inferred`) → lands in the review queue →
+on approval, appended to `RelationshipEvent`. Add a `query_relationships`
+agent tool (mirrors the existing `lookup_lore` tool pattern in
+`app/agent/tools.py`) that resolves "current state" for a given entity or
+location. Expose `GET /entities/{id}/relationships`.
+
+**New table:** `RelationshipEvent` — see
+[Data Model](data-model.md#core-entities) for the full column list.
+
+**Verify:** run the pipeline across two sessions where the second event
+ends a relationship asserted in the first (e.g. an NPC dies); after both
+are approved, confirm the "current state" resolver excludes the ended edge.
+
+### Phase 5 — Hex-Based Conflict Detector
+
+Because locations/quests are already tagged on sessions via
+`SessionEntityLink` (Phase 1), this phase is lighter than originally
+scoped — no spatial inference step is needed. Add embedding generation
+(`OllamaEmbeddings`, `nomic-embed-text`) into a new `lore_chunks` table on
+processing. A pre-session planning view/endpoint takes a session's tagged
+locations, computes a hex-radius candidate set in Python, runs a
+`pgvector` similarity search scoped to those hexes, and returns an LLM
+classifier's structured `{conflict: bool, explanation: str}` verdict.
+
+**New table:** `lore_chunks` (id, source_processing_run_id, chunk_text,
+embedding vector(768), hex_q, hex_r, campaign_id).
+
+**Verify:** seed two sessions tagged to adjacent hexes with a real
+contradiction (e.g. "collapsed the cave entrance" vs. a later session
+tagged to the same location assuming access); confirm the pre-session view
+flags it, and confirm a session tagged to a far hex is not flagged.
+
+### Phase 6 — Inline Syntax Tagging (secondary, optional)
+
+Obsidian-style `[[Entity Name]]` (and similar) markup inside `Note.content`,
+parsed deterministically (no LLM call) at save time, `capture_method =
+syntax`, auto-approved. Editor-side autocomplete against the `Entity`/
+`Character` registry. This can be built any time after Phase 1 — nothing
+else depends on it, and plain-text notes work fully without it.
 
 ## Files touched (once implementation begins)
 
 Following the existing module boundaries in `app/`:
 
+- `app/auth/` (new) — Discord OAuth2 flow, session/token handling,
+  `has_permission()` entitlement seam
 - `app/agent/llm.py` (new), `app/agent/graph.py` (refactor to use it),
   `app/agent/tools.py` (add `query_relationships`)
 - `app/worker/celery_app.py`, `app/worker/tasks.py` (new package)
-- `app/db/models.py` (new tables), `app/db/session.py` (add a sync engine
-  for the worker), `alembic/` (new)
-- `app/api/routes.py` → split into `app/api/routers/{session_logs,entities,rumors}.py`
-  once it grows past the current two endpoints
+- `app/db/models.py` (new tables per [Data Model](data-model.md)),
+  `app/db/session.py` (add a sync engine for the worker), `alembic/` (new)
+- `app/api/routers/{sessions,entities,people,characters,review_queue,rumors}.py`
+  (new — replaces the current two-endpoint `app/api/routes.py`)
 - `app/schemas/campaign.py` → extended with per-feature schemas as they're added
-- `Dockerfile` (new), `docker-compose.yml` (add `redis`, `api`, `worker`)
+- `frontend/` (new) — React + Vite + TypeScript app for the data-entry
+  journeys; its own `Dockerfile` — not yet scaffolded
+- `Dockerfile` (new), `docker-compose.yml` (add `redis`, `api`, `worker`, `web`)
 - `pyproject.toml` (new dependencies)

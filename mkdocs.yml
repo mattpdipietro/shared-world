@@ -22,10 +22,16 @@ theme:
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - Data Model: data-model.md
+  - UI Mockups: mockups/index.md
   - Roadmap: roadmap.md
   - Setup: setup.md
 
 markdown_extensions:
   - admonition
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

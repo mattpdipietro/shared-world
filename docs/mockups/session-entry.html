@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Session Entry — UI Mockup</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --panel: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --primary: #4f46e5;
+    --primary-fg: #ffffff;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --chip-bg: #eef2ff;
+    --chip-fg: #3730a3;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b0f19;
+      --panel: #131a2b;
+      --border: #263248;
+      --text: #e5e9f0;
+      --muted: #93a0b4;
+      --primary: #818cf8;
+      --primary-fg: #0b0f19;
+      --chip-bg: #1e2440;
+      --chip-fg: #c7d2fe;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin: 0 0 28px; }
+  .steps {
+    display: flex; gap: 4px; margin-bottom: 24px; list-style: none; padding: 0;
+  }
+  .steps li {
+    flex: 1; text-align: center; font-size: 12px; padding: 8px 4px;
+    border-bottom: 2px solid var(--border); color: var(--muted);
+  }
+  .steps li.active { border-color: var(--primary); color: var(--text); font-weight: 600; }
+  .steps li.done { border-color: var(--success); color: var(--text); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+  label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--muted); }
+  select, input[type=text], input[type=date], textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); color: var(--text); font-size: 13px; margin-bottom: 14px;
+  }
+  textarea { min-height: 100px; resize: vertical; font-family: inherit; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  button {
+    font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); cursor: pointer;
+  }
+  button.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+  button.ghost { background: transparent; border-color: transparent; color: var(--primary); padding: 4px 6px; }
+  button.danger-ghost { background: transparent; border-color: transparent; color: var(--danger); padding: 4px 8px; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .footer-nav { display: flex; justify-content: space-between; margin-top: 20px; }
+  .participant-row, .dm-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border);
+  }
+  .participant-row:last-child { border-bottom: none; }
+  .name { font-weight: 600; font-size: 13px; min-width: 90px; }
+  .role-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--chip-bg); color: var(--chip-fg);
+    font-weight: 600;
+  }
+  .add-row { display: flex; gap: 8px; margin-top: 10px; }
+  .add-row select { margin-bottom: 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--chip-bg); color: var(--chip-fg);
+    border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 12px; margin: 0 6px 6px 0;
+  }
+  .chip button { background: none; border: none; padding: 0 6px; color: var(--chip-fg); font-size: 13px; line-height: 1; }
+  .quick-create { margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 12px; display: none; }
+  .quick-create.open { display: block; }
+  .help-note {
+    font-size: 12px; background: var(--chip-bg); color: var(--chip-fg); border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 12px;
+  }
+  .summary-item { font-size: 13px; margin-bottom: 8px; }
+  .summary-item .label { color: var(--muted); display: inline-block; min-width: 110px; }
+  .empty { color: var(--muted); font-size: 12px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>New Session</h1>
+  <p class="subtitle">Mockup — validates the role/host assignment flow described in Data Model. No backend, all state is in-memory.</p>
+
+  <ol class="steps" id="steps">
+    <li data-step="0">Basics</li>
+    <li data-step="1">People &amp; Roles</li>
+    <li data-step="2">Tags</li>
+    <li data-step="3">Notes</li>
+    <li data-step="4">Review</li>
+  </ol>
+
+  <!-- Step 0: Basics -->
+  <section class="panel" data-panel="0">
+    <div class="card">
+      <h2>Session basics</h2>
+      <div class="row">
+        <div>
+          <label>Campaign</label>
+          <select id="campaign">
+            <option>The Shattered Marches</option>
+          </select>
+        </div>
+        <div>
+          <label>Date played</label>
+          <input type="date" id="date">
+        </div>
+      </div>
+      <label>Title (optional)</label>
+      <input type="text" id="title" placeholder="e.g. The Siege of Shadowbrook">
+    </div>
+  </section>
+
+  <!-- Step 1: People & Roles -->
+  <section class="panel" data-panel="1" style="display:none">
+    <div class="card">
+      <h2>Dungeon Master</h2>
+      <p class="hint">Whoever runs this session. The DM can't also be added below as a participant.</p>
+      <select id="dmSelect"></select>
+    </div>
+
+    <div class="card">
+      <h2>Participants</h2>
+      <p class="hint">Add or remove people as availability changes — rosters aren't locked. Each participant picks one of their active characters.</p>
+      <div id="participantList"></div>
+      <div class="add-row">
+        <select id="addParticipantSelect"></select>
+        <button id="addParticipantBtn">Add</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Host</h2>
+      <p class="hint">The host organizes this session. Host is always one of the players above — never the DM.</p>
+      <div id="hostHelp" class="help-note" style="display:none">Add at least one participant before assigning a host.</div>
+      <select id="hostSelect"></select>
+    </div>
+  </section>
+
+  <!-- Step 2: Tags -->
+  <section class="panel" data-panel="2" style="display:none">
+    <div class="card">
+      <h2>Locations / hexes touched</h2>
+      <div id="locationChips"></div>
+      <div class="add-row">
+        <select id="locationSelect"></select>
+        <button id="addLocationBtn">Tag</button>
+        <button class="ghost" id="newLocationToggle">+ New location</button>
+      </div>
+      <div class="quick-create" id="newLocationForm">
+        <div class="row">
+          <div><label>Name</label><input type="text" id="newLocationName" placeholder="e.g. Greywatch Tower"></div>
+          <div><label>Hex (q, r)</label><input type="text" id="newLocationHex" placeholder="e.g. 4, -3"></div>
+        </div>
+        <button class="primary" id="createLocationBtn">Add &amp; tag</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Quests / hooks addressed</h2>
+      <div id="questChips"></div>
+      <div class="add-row">
+        <select id="questSelect"></select>
+        <button id="addQuestBtn">Tag</button>
+        <button class="ghost" id="newQuestToggle">+ New quest</button>
+      </div>
+      <div class="quick-create" id="newQuestForm">
+        <label>Name</label><input type="text" id="newQuestName" placeholder="e.g. The Missing Caravan">
+        <button class="primary" id="createQuestBtn">Add &amp; tag</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 3: Notes -->
+  <section class="panel" data-panel="3" style="display:none">
+    <div class="card">
+      <h2>Your note</h2>
+      <p class="hint">Plain markdown, one field. Everyone else tagged on this session adds their own note independently — before or after today.</p>
+      <textarea id="noteText" placeholder="What happened, from your seat at the table..."></textarea>
+    </div>
+  </section>
+
+  <!-- Step 4: Review -->
+  <section class="panel" data-panel="4" style="display:none">
+    <div class="card">
+      <h2>Review</h2>
+      <div id="reviewContent"></div>
+    </div>
+  </section>
+
+  <div class="footer-nav">
+    <button id="backBtn">Back</button>
+    <button class="primary" id="nextBtn">Next</button>
+  </div>
+</div>
+
+<script>
+  const PEOPLE = [
+    { id: 1, name: "Alex" },
+    { id: 2, name: "Sam" },
+    { id: 3, name: "Jordan" },
+    { id: 4, name: "Priya" },
+    { id: 5, name: "Riley" },
+  ];
+  const CHARACTERS = [
+    { id: 1, personId: 1, name: "Thia", status: "active" },
+    { id: 2, personId: 2, name: "Kestrel", status: "active" },
+    { id: 3, personId: 2, name: "Old Bram", status: "retired" },
+    { id: 4, personId: 3, name: "Nyx", status: "active" },
+    { id: 5, personId: 4, name: "Grendel", status: "active" },
+    { id: 6, personId: 4, name: "Sable", status: "active" },
+    { id: 7, personId: 5, name: "Corvin", status: "active" },
+  ];
+  let allLocations = [
+    { id: 1, name: "Shadowbrook", hex: "3, -2" },
+    { id: 2, name: "Whispering Caves", hex: "5, -4" },
+  ];
+  let allQuests = [
+    { id: 1, name: "The Iron Ring's Grip" },
+    { id: 2, name: "The Missing Caravan" },
+  ];
+
+  const state = {
+    step: 0,
+    dmPersonId: null,
+    participants: [],       // { personId, characterId }
+    hostPersonId: null,
+    tags: { locations: [], quests: [] }, // arrays of ids
+    note: "",
+  };
+
+  const personName = id => PEOPLE.find(p => p.id === id)?.name ?? "?";
+  const activeCharsFor = personId => CHARACTERS.filter(c => c.personId === personId && c.status === "active");
+  const charName = id => CHARACTERS.find(c => c.id === id)?.name ?? "?";
+
+  function renderDmSelect() {
+    const sel = document.getElementById("dmSelect");
+    const current = state.dmPersonId;
+    sel.innerHTML = '<option value="">Select DM…</option>' +
+      PEOPLE.map(p => `<option value="${p.id}" ${p.id === current ? "selected" : ""}>${p.name}</option>`).join("");
+  }
+
+  function renderAddParticipantSelect() {
+    const sel = document.getElementById("addParticipantSelect");
+    const takenIds = new Set([state.dmPersonId, ...state.participants.map(p => p.personId)]);
+    const available = PEOPLE.filter(p => !takenIds.has(p.id));
+    sel.innerHTML = available.length
+      ? available.map(p => `<option value="${p.id}">${p.name}</option>`).join("")
+      : '<option value="">No one left to add</option>';
+    document.getElementById("addParticipantBtn").disabled = available.length === 0;
+  }
+
+  function renderParticipantList() {
+    const container = document.getElementById("participantList");
+    if (state.participants.length === 0) {
+      container.innerHTML = '<p class="empty">No participants yet.</p>';
+      return;
+    }
+    container.innerHTML = state.participants.map(p => {
+      const chars = activeCharsFor(p.personId);
+      const charOptions = chars.map(c => `<option value="${c.id}" ${c.id === p.characterId ? "selected" : ""}>${c.name}</option>`).join("");
+      return `
+        <div class="participant-row">
+          <span class="name">${personName(p.personId)}</span>
+          <span class="role-badge">Player</span>
+          <select style="flex:1;margin-bottom:0" data-char-for="${p.personId}">
+            <option value="">No character</option>
+            ${charOptions}
+          </select>
+          <button class="danger-ghost" data-remove="${p.personId}">Remove</button>
+        </div>`;
+    }).join("");
+
+    container.querySelectorAll("[data-char-for]").forEach(sel => {
+      sel.addEventListener("change", e => {
+        const pid = Number(e.target.dataset.charFor);
+        const row = state.participants.find(x => x.personId === pid);
+        row.characterId = e.target.value ? Number(e.target.value) : null;
+      });
+    });
+    container.querySelectorAll("[data-remove]").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const pid = Number(e.target.dataset.remove);
+        state.participants = state.participants.filter(x => x.personId !== pid);
+        if (state.hostPersonId === pid) state.hostPersonId = null;
+        renderPeopleStep();
+      });
+    });
+  }
+
+  function renderHostSelect() {
+    const sel = document.getElementById("hostSelect");
+    const help = document.getElementById("hostHelp");
+    if (state.participants.length === 0) {
+      sel.innerHTML = "";
+      sel.disabled = true;
+      help.style.display = "block";
+      return;
+    }
+    help.style.display = "none";
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">Select host…</option>' +
+      state.participants.map(p =>
+        `<option value="${p.personId}" ${p.personId === state.hostPersonId ? "selected" : ""}>${personName(p.personId)}</option>`
+      ).join("");
+    // Note: the DM is structurally never an option here — the host list is
+    // built only from `state.participants`, and a person can't be in both
+    // `dmPersonId` and `participants` at once (see addParticipantSelect).
+  }
+
+  function renderPeopleStep() {
+    renderDmSelect();
+    renderAddParticipantSelect();
+    renderParticipantList();
+    renderHostSelect();
+  }
+
+  function renderTagsStep() {
+    const locSel = document.getElementById("locationSelect");
+    const untaggedLocs = allLocations.filter(l => !state.tags.locations.includes(l.id));
+    locSel.innerHTML = untaggedLocs.length
+      ? untaggedLocs.map(l => `<option value="${l.id}">${l.name} (${l.hex})</option>`).join("")
+      : '<option value="">All tagged</option>';
+
+    document.getElementById("locationChips").innerHTML = state.tags.locations.map(id => {
+      const l = allLocations.find(x => x.id === id);
+      return `<span class="chip">${l.name} · hex ${l.hex} <button data-untag-loc="${id}">×</button></span>`;
+    }).join("") || '<p class="empty">No locations tagged yet.</p>';
+
+    document.querySelectorAll("[data-untag-loc]").forEach(btn =>
+      btn.addEventListener("click", e => {
+        state.tags.locations = state.tags.locations.filter(id => id !== Number(e.target.dataset.untagLoc));
+        renderTagsStep();
+      })
+    );
+
+    const questSel = document.getElementById("questSelect");
+    const untaggedQuests = allQuests.filter(q => !state.tags.quests.includes(q.id));
+    questSel.innerHTML = untaggedQuests.length
+      ? untaggedQuests.map(q => `<option value="${q.id}">${q.name}</option>`).join("")
+      : '<option value="">All tagged</option>';
+
+    document.getElementById("questChips").innerHTML = state.tags.quests.map(id => {
+      const q = allQuests.find(x => x.id === id);
+      return `<span class="chip">${q.name} <button data-untag-quest="${id}">×</button></span>`;
+    }).join("") || '<p class="empty">No quests tagged yet.</p>';
+
+    document.querySelectorAll("[data-untag-quest]").forEach(btn =>
+      btn.addEventListener("click", e => {
+        state.tags.quests = state.tags.quests.filter(id => id !== Number(e.target.dataset.untagQuest));
+        renderTagsStep();
+      })
+    );
+  }
+
+  function renderReview() {
+    const dm = state.dmPersonId ? personName(state.dmPersonId) : "—";
+    const host = state.hostPersonId ? personName(state.hostPersonId) : "—";
+    const participantsHtml = state.participants.length
+      ? state.participants.map(p => `${personName(p.personId)}${p.characterId ? " as " + charName(p.characterId) : ""}`).join(", ")
+      : "—";
+    const locsHtml = state.tags.locations.map(id => allLocations.find(l => l.id === id).name).join(", ") || "—";
+    const questsHtml = state.tags.quests.map(id => allQuests.find(q => q.id === id).name).join(", ") || "—";
+    document.getElementById("reviewContent").innerHTML = `
+      <div class="summary-item"><span class="label">Campaign</span>The Shattered Marches</div>
+      <div class="summary-item"><span class="label">Date</span>${document.getElementById("date").value || "—"}</div>
+      <div class="summary-item"><span class="label">DM</span>${dm}</div>
+      <div class="summary-item"><span class="label">Host</span>${host}</div>
+      <div class="summary-item"><span class="label">Participants</span>${participantsHtml}</div>
+      <div class="summary-item"><span class="label">Locations</span>${locsHtml}</div>
+      <div class="summary-item"><span class="label">Quests</span>${questsHtml}</div>
+      <div class="summary-item"><span class="label">Your note</span>${state.note ? state.note.slice(0, 80) + (state.note.length > 80 ? "…" : "") : "—"}</div>
+    `;
+  }
+
+  // Step navigation
+  const panels = document.querySelectorAll(".panel");
+  const stepItems = document.querySelectorAll("#steps li");
+  function goToStep(n) {
+    state.step = n;
+    panels.forEach(p => p.style.display = Number(p.dataset.panel) === n ? "" : "none");
+    stepItems.forEach(li => {
+      const s = Number(li.dataset.step);
+      li.classList.toggle("active", s === n);
+      li.classList.toggle("done", s < n);
+    });
+    document.getElementById("backBtn").disabled = n === 0;
+    document.getElementById("nextBtn").textContent = n === panels.length - 1 ? "Submit" : "Next";
+    if (n === 1) renderPeopleStep();
+    if (n === 2) renderTagsStep();
+    if (n === 4) renderReview();
+  }
+
+  document.getElementById("backBtn").addEventListener("click", () => goToStep(Math.max(0, state.step - 1)));
+  document.getElementById("nextBtn").addEventListener("click", () => {
+    if (state.step === panels.length - 1) {
+      alert("Mockup only — nothing is actually submitted.");
+      return;
+    }
+    goToStep(Math.min(panels.length - 1, state.step + 1));
+  });
+
+  document.getElementById("dmSelect").addEventListener("change", e => {
+    state.dmPersonId = e.target.value ? Number(e.target.value) : null;
+    renderPeopleStep();
+  });
+  document.getElementById("hostSelect").addEventListener("change", e => {
+    state.hostPersonId = e.target.value ? Number(e.target.value) : null;
+  });
+  document.getElementById("addParticipantBtn").addEventListener("click", () => {
+    const sel = document.getElementById("addParticipantSelect");
+    if (!sel.value) return;
+    state.participants.push({ personId: Number(sel.value), characterId: null });
+    renderPeopleStep();
+  });
+  document.getElementById("addLocationBtn").addEventListener("click", () => {
+    const sel = document.getElementById("locationSelect");
+    if (!sel.value) return;
+    state.tags.locations.push(Number(sel.value));
+    renderTagsStep();
+  });
+  document.getElementById("addQuestBtn").addEventListener("click", () => {
+    const sel = document.getElementById("questSelect");
+    if (!sel.value) return;
+    state.tags.quests.push(Number(sel.value));
+    renderTagsStep();
+  });
+  document.getElementById("newLocationToggle").addEventListener("click", () => {
+    document.getElementById("newLocationForm").classList.toggle("open");
+  });
+  document.getElementById("newQuestToggle").addEventListener("click", () => {
+    document.getElementById("newQuestForm").classList.toggle("open");
+  });
+  document.getElementById("createLocationBtn").addEventListener("click", () => {
+    const name = document.getElementById("newLocationName").value.trim();
+    const hex = document.getElementById("newLocationHex").value.trim();
+    if (!name) return;
+    const id = Math.max(0, ...allLocations.map(l => l.id)) + 1;
+    allLocations.push({ id, name, hex: hex || "0, 0" });
+    state.tags.locations.push(id);
+    document.getElementById("newLocationName").value = "";
+    document.getElementById("newLocationHex").value = "";
+    document.getElementById("newLocationForm").classList.remove("open");
+    renderTagsStep();
+  });
+  document.getElementById("createQuestBtn").addEventListener("click", () => {
+    const name = document.getElementById("newQuestName").value.trim();
+    if (!name) return;
+    const id = Math.max(0, ...allQuests.map(q => q.id)) + 1;
+    allQuests.push({ id, name });
+    state.tags.quests.push(id);
+    document.getElementById("newQuestName").value = "";
+    document.getElementById("newQuestForm").classList.remove("open");
+    renderTagsStep();
+  });
+  document.getElementById("noteText").addEventListener("input", e => state.note = e.target.value);
+
+  goToStep(0);
+</script>
+</body>
+</html>
