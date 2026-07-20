@@ -76,6 +76,7 @@ Core goals: Long-term world state tracking, entity extraction, state persistence
 ├── pyproject.toml         # Poetry package config and dependency tree
 ├── poetry.lock            # Lockfile for reproducible builds
 └── README.md
+```
 
 ---
 
