@@ -11,7 +11,8 @@ description: Technical design of the LangGraph agent, the planned Celery/Redis j
 app/
 ├── agent/     # LangGraph state graph, nodes, tools, schemas — zero FastAPI deps
 ├── api/       # FastAPI routers, dependency injection, middleware
-├── db/        # Async SQLAlchemy/asyncpg connections, DDL bootstrap
+├── db/        # Async SQLAlchemy/asyncpg connections, models
+├── auth/      # Discord OAuth2 login, Redis-backed sessions, entitlement seam
 ├── schemas/   # Pydantic v2 request/response and LLM structured-output models
 └── main.py    # FastAPI entry point + lifespan wiring
 ```
@@ -69,10 +70,61 @@ See [Data Model](data-model.md) for the actual domain schema (people,
 characters, sessions, entities, notes, and the processing/provenance
 tables) — this page stays focused on the surrounding technical machinery.
 
-`app/db/bootstrap.py` enables the `vector` extension and creates tables from
-`app/db/models.py` directly (`Base.metadata.create_all`). This is sufficient
-for the current two-table schema; see [Migrations](#migrations) below for
-the plan to introduce Alembic before the schema grows further.
+Schema changes are versioned Alembic migrations under `alembic/versions/` —
+see [Migrations](#migrations) below.
+
+## Authentication
+
+`app/auth/` implements the login mechanics behind
+[Data Model → Authentication and entitlements](data-model.md#authentication-and-entitlements).
+The policy (Discord-only login, `Person` upserted on callback, entitlements
+stubbed open) lives there; this section covers how it's wired:
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant API as FastAPI (app/auth)
+    participant Discord
+    participant Redis
+    participant DB as Postgres
+
+    Browser->>API: GET /auth/discord/login
+    API-->>Browser: 307 to Discord + sw_oauth_state cookie
+    Browser->>Discord: authorize
+    Discord-->>Browser: redirect to /auth/discord/callback?code&state
+    Browser->>API: GET /auth/discord/callback
+    API->>Discord: exchange code for token, fetch user
+    API->>DB: upsert Person by discord_id
+    API->>Redis: create_session(person.id)
+    API-->>Browser: redirect to FRONTEND_URL + sw_session cookie
+    Browser->>API: GET /auth/me (cookie)
+    API->>Redis: resolve session -> person_id
+    API->>DB: load Person
+    API-->>Browser: PersonOut
+```
+
+- **OAuth client**: `authlib`'s `AsyncOAuth2Client` (`app/auth/discord.py`) —
+  the authorization-code flow's two HTTP calls (token exchange, user fetch)
+  plus authorize-URL construction, rather than a hand-rolled `httpx` client.
+- **CSRF protection**: a random `state` value is round-tripped through a
+  short-lived (`5 min`) `sw_oauth_state` cookie, checked against Discord's
+  echoed `state` query param on callback.
+- **Sessions live in Redis, not a JWT**: `app/auth/sessions.py` stores
+  `session_id -> person_id` with a 14-day TTL. The browser only ever holds
+  the opaque `sw_session` cookie (`HttpOnly`, `SameSite=Lax`). This reuses
+  the Redis instance already planned for Celery (see
+  [Background jobs](#background-jobs-celery-redis)) instead of adding a
+  second session technology — and keeps sessions server-revocable (logout
+  is a Redis `DEL`, not "wait for the token to expire").
+- **CORS**: the frontend (`FRONTEND_URL`, default `http://localhost:5173`)
+  is the only allowed origin, with `allow_credentials=True` so the session
+  cookie rides along on `fetch` calls. `SameSite=Lax` cookies are still sent
+  on same-site cross-origin requests (Vite dev server and the API are both
+  `localhost`, just different ports), so no `SameSite=None`/`Secure` dance
+  is needed for local dev.
+- **Entitlements seam**: `app/auth/entitlements.py::has_permission(person,
+  action, resource)` — always `True` today; every future write path should
+  call through it rather than checking roles inline.
 
 ## RAG over campaign lore
 
@@ -205,12 +257,16 @@ flowchart LR
 
 ## Migrations
 
-`Base.metadata.create_all` (current `app/db/bootstrap.py`) works for the
-existing two-table schema, but every feature above adds new tables
-(`session_logs`, `relationship_events`, `rumors`, `lore_chunks`). Alembic
-gets introduced before any of those land, so every schema change afterward
-is a reviewable, reversible migration instead of a widening `create_all`
-call.
+Schema changes are versioned Alembic migrations under `alembic/versions/`,
+run via `poetry run alembic upgrade head`. `alembic/env.py` imports
+`Base.metadata` from `app/db/models.py` directly (autogenerate diffs against
+it) and reads the connection string from `app/db/session.py::DATABASE_URL`,
+so the database URL has one source of truth rather than being duplicated in
+`alembic.ini`. The baseline migration covers the schema as of the Discord
+auth work (`campaigns`, `entities`, `people`); every feature phase in the
+[Roadmap](roadmap.md) that adds a table (`session_logs`,
+`relationship_events`, `rumors`, `lore_chunks`, and the full
+[Data Model](data-model.md) set) adds its own migration on top.
 
 ## Containerization and local deployment
 

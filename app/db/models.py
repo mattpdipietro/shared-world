@@ -33,6 +33,22 @@ class Campaign(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Person(Base):
+    """A real human, created only as a side effect of a successful Discord
+    login — see docs/data-model.md#authentication-and-entitlements.
+    """
+
+    __tablename__ = "people"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    discord_id: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    username: Mapped[str] = mapped_column(String(255), nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Entity(Base):
     """A tracked world entity (NPC, location, faction, item, quest) with an
     embedding for RAG retrieval over campaign lore.

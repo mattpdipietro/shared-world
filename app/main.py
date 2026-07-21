@@ -6,15 +6,19 @@ the lifetime of the app, and exposes the API routers.
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from app.agent.graph import build_graph
 from app.api.routes import router
+from app.auth.router import router as auth_router
 
 CHECKPOINT_DB_PATH = "checkpoints.sqlite"
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
 
 @asynccontextmanager
@@ -36,4 +40,12 @@ app = FastAPI(
     "entity extraction, and RAG over campaign lore.",
     lifespan=lifespan,
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(router)
+app.include_router(auth_router)

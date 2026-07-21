@@ -12,7 +12,7 @@ Full docs: [`docs/index.md`](docs/index.md) (or `poetry run mkdocs serve -a loca
 poetry install
 docker-compose up -d
 docker exec -it shared-world-ollama ollama pull llama3.1:8b
-poetry run python -c "import asyncio; from app.db.bootstrap import init_db; asyncio.run(init_db())"
+poetry run alembic upgrade head
 poetry run uvicorn app.main:app --reload --port 8000
 ```
 
